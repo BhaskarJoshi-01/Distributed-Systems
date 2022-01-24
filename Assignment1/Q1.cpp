@@ -7,14 +7,14 @@
 
 using namespace std;
 #define ld long double
-
+// This will work for every those number in the range of int
 // This function is to check if a number is prime or not
 // in range start->end , if it is prime it returns 1 else 0
 
 int isPrime(int start, int end, int num)
 {
     int flag = 0; //prime
-    if(num==1)
+    if (num == 1)
     {
         return 1; // non prime : corner case
     }
@@ -23,7 +23,7 @@ int isPrime(int start, int end, int num)
         if (num % i == 0 && num != 1 && i != 1)
         {
             flag = 1; // non prime
-            cout << start << " " << end << num << " " << i << endl;
+            // cout << start << " " << end << num << " " << i << endl;
             break;
         }
     }
@@ -33,6 +33,7 @@ int isPrime(int start, int end, int num)
 int main(int argc, char *argv[])
 {
     // Initialize MPI
+
     MPI_Init(&argc, &argv);
     MPI_Comm comm = MPI_COMM_WORLD;
     int numprocs, rank;
@@ -42,7 +43,7 @@ int main(int argc, char *argv[])
     MPI_Comm_rank(comm, &rank);
 
     // handeling corner cases
-    if (argc >= 3 || numprocs >= 12)
+    if ( numprocs >= 12)
     {
         printf("Incorrect Input format \nGive only input as: \n mpirun -np 11 ./a.out <input file> <output file>. \n");
         MPI_Abort(comm, EXIT_FAILURE);
@@ -50,16 +51,19 @@ int main(int argc, char *argv[])
     // Now taking inputs in rootrank i.e 0 and broadcasting it
     // need to edit these informations
     int N;
-    // cin >> N;
-    fstream file;
-    string line;
-    file.open(argv[1]);
-    if (file.is_open())
+    if (rank == 0)
     {
-        getline(file, line);
+        // cin >> N;
+        fstream file;
+        string line;
+        file.open(argv[1]);
+        if (file.is_open())
+        {
+            getline(file, line);
+        }
+        N = stoi(line);
     }
-    N = stoi(line);
-
+    MPI_Bcast(&N, 1, MPI_INT, 0, MPI_COMM_WORLD);
     //The highest value of N can be 1e9 as given in question
     //so for general purpose I have not taken sqrt(1e9) i.e 1e3
     int sqrt_N = sqrt((ld)N);
@@ -76,12 +80,14 @@ int main(int argc, char *argv[])
     }
     int my_result = isPrime(a, b, N);
     int reduction_result;
-    cout << my_result << " " << rank << endl;
+    // cout << my_result << " " << rank << endl;
     MPI_Reduce(&my_result, &reduction_result, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
     if (rank == 0)
     {
-        cout << ((reduction_result > 0) ? "No" : "Yes") << endl;
+
+        freopen(argv[2], "w", stdout);
+        cout << ((reduction_result > 0) ? "NO" : "YES") << endl;
     }
 
     MPI_Finalize();
