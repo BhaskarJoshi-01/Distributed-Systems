@@ -12,10 +12,71 @@
 // displs is displacement_vector
 // rpp is rows_per_process
 // np0 is number_of_process_with_rows=rpp
-// np0 is number_of_process_with_rows=rpp+1
+// np1 is number_of_process_with_rows=rpp+1
 // var_perm is array to store temp_col_num
 // rows_before is actual_posn in 1d view
 // eff_row is proc_assign
+// var_perm is perm_of_var
+
+void perform_elimination(int recv_id, int id, int num_eq, float *proc_rows, float *proc_vals, int curr, float *recvd_row, int rows_per_proc, int num_proc, int *var_perm)
+{
+
+    swap(var_perm[(int)recvd_row[num_eq]], var_perm[recv_id]);
+    ll i = 0;
+    while (i < rows_per_proc)
+    {
+        if (num_proc * i != recv_id - id)
+        {
+            swap(proc_rows[(num_eq * i) + recv_id], proc_rows[(num_eq * i) + (int)recvd_row[num_eq]]);
+            if (curr / num_proc > i)
+            {
+            }
+            else
+            {
+                float piv_val = proc_rows[(num_eq * i) + recv_id];
+                for (ll j = 0; j <= num_eq - 1; ++j)
+                    proc_rows[j + (num_eq * i)] -= (recvd_row[j] * piv_val);
+                proc_vals[i] = proc_vals[i] - recvd_row[num_eq + 1] * piv_val;
+            }
+        }
+
+        i++;
+    }
+}
+
+ll compute_pivot(int curr, int num_proc, int num_eq, float *proc_rows)
+{
+    float mx;
+    ll row_id;
+    row_id = curr / num_proc;
+    mx = -1.0;
+    ll pivot, i = curr;
+    float val;
+    while (i <= num_eq - 1)
+    {
+        val = proc_rows[i + (num_eq * row_id)];
+        if (val > mx)
+            pivot = i, mx = val;
+        if (val <= 0)
+            val = val * -1;
+        i++;
+    }
+    return pivot;
+}
+
+void perform_division(int id, int curr, float *proc_rows, int pivot, int num_proc, int num_eq, int rows_per_proc, float *proc_vals)
+{
+
+    swap(proc_rows[pivot + ((curr / num_proc) * num_eq)], proc_rows[curr + ((curr / num_proc) * num_eq)]);
+    ll i = curr;
+    float piv_val = proc_rows[curr + ((curr / num_proc) * num_eq)];
+    while (i <= num_eq - 1)
+    {
+        proc_rows[i + ((curr / num_proc) * num_eq)] /= piv_val;
+        i++;
+    }
+    proc_vals[curr / num_proc] /= piv_val;
+}
 
 int main(int argc, char **argv)
 {
@@ -107,7 +168,9 @@ int main(int argc, char **argv)
         divs[num_proc - 1] = num_eq * divs[num_proc - 1], fclose(inputfp);
     }
 
-    
+    // MPI_Barrier blocks all MPI processes in the given communicator until they all call this routine.
+    // we are doing this so that our code input becomes in sync
+    MPI_Barrier(comm);
 
     MPI_Finalize();
     return EXIT_SUCCESS;
