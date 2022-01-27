@@ -115,6 +115,8 @@ int main(int argc, char **argv)
     if (rank == 0)
     {
         int k = 0;
+        freopen(argv[2], "w", stdout);
+
         for (int i = 0; i < 4; i++)
             cout << "3 " << i << " " << result[k++] << endl;
 
