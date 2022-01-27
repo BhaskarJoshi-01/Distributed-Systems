@@ -43,11 +43,9 @@ void perform_elimination(int recv_id, int id, int num_eq, ld *proc_rows, ld *pro
                 proc_vals[i] = proc_vals[i] - recvd_row[num_eq + 1] * piv_val;
             }
         }
-
         i++;
     }
 }
-
 
 ll compute_pivot(int curr, int num_proc, int num_eq, ld *proc_rows)
 {
@@ -94,7 +92,7 @@ int main(int argc, char **argv)
     int root_rank = 0;
     // Reading input from file
     FILE *inputfp = NULL;
-    ll num_eq=0;
+    ll num_eq = 0;
     // reading number of equations from file first and creating
     // variables accordingly for taking matrix as input and distributing
 
@@ -153,7 +151,7 @@ int main(int argc, char **argv)
                 rows_before = (i % num_proc) * (1 + rpp);
             eff_row = divs[i % num_proc] + rows_before;
             divs[i % num_proc]++;
-            cerr<<"\ndivs update"<<divs[i % num_proc]<<endl;
+            // cerr << "\ndivs update" << divs[i % num_proc] << endl;
             // now we have assigned row in process , now we just read and allocate from imput
             while (k < num_eq)
             {
@@ -187,28 +185,30 @@ int main(int argc, char **argv)
     // MPI_Scatterv is in which the data dispatched from the root process
     // can vary in the number of elements, and the location from which load
     // these elements in the root process buffer.
-    if(id==0){
-
-    // for (int i = 0; i < A_SZ; i++)
+    // if (id == 0)
     // {
-    //     cerr << eq_mat[i] << " ";
+
+    //     // for (int i = 0; i < A_SZ; i++)
+    //     // {
+    //     //     cerr << eq_mat[i] << " ";
+    //     // }
+    //     // cerr << "\n";
+    //     // cerr << "\n"
+    //         //  << id << "DIVS: ";
+    //     for (int i = 0; i < num_proc; i++)
+    //     {
+    //         cerr << divs[i] << " ";
+    //     }
+    //     cerr << endl;
+    //     cerr << "disps\n";
+    //     for (int i = 0; i < num_proc; i++)
+    //     {
+    //         cerr << displs[i] << " ";
+    //     }
+    //     cerr << "\n";
     // }
-    // cerr << "\n";
-    cerr<<"\n"<<id<<"DIVS: ";
-    for (int i = 0; i < num_proc; i++)
-    {
-        cerr << divs[i] << " ";
-    }
-    cerr<<endl;
-    cerr << "disps\n";
-    for (int i = 0; i < num_proc; i++)
-    {
-        cerr << displs[i] << " ";
-    }
-    cerr << "\n";
-    }
     MPI_Scatterv(eq_mat, divs, displs, MPI_DOUBLE, proc_rows, A_SZ, MPI_DOUBLE, root_rank, comm);
-    cerr << "hi " << id << endl;
+    // cerr << "hi " << id << endl;
 
     // similarly we need to do for B matrix
     // as divs and disps were multiplied by num_eq above
@@ -234,13 +234,13 @@ int main(int argc, char **argv)
     ll piv, cnt = 0;
     int flag = 0;
     MPI_Barrier(comm);
-    fprintf(stderr, "hello %d %lld\n", id, rows_per_proc);
-    cerr<<endl;
+    // fprintf(stderr, "hello %d %lld\n", id, rows_per_proc);
+    // cerr<<endl;
     // cerr<<"hello"<<id<<rows_per_proc<<endl;
     // we will loop over the rows and communicate in pipelined way
     while (cnt <= rows_per_proc - 1)
     {
-    cout<<endl<<"ko"<<id<<root_rank<<":"<<cnt<<endl;
+        // cout<<endl<<"ko"<<id<<root_rank<<":"<<cnt<<endl;
         ld send_buf[REC_SZ]; // this will contain first n processed values of rows and next pivot at nth posn and value of b at n+1th index
         // Iterating over all the rows before the current row and
         // previously processed row, to perform elimination
@@ -248,7 +248,7 @@ int main(int argc, char **argv)
         ll i = prev_curr + 1;
         while (i <= curr - 1)
         {
-            cerr<<"ee "<<id<<cnt<<endl;
+            // cerr<<"ee "<<id<<cnt<<endl;
             MPI_Recv(recvd_row, REC_SZ, MPI_DOUBLE, prev_proc, i, comm, &st);
             if (curr < (i + num_proc - 1))
                 MPI_Send(recvd_row, REC_SZ, MPI_DOUBLE, next_proc, i, comm);
@@ -258,7 +258,7 @@ int main(int argc, char **argv)
             perform_elimination(i, id, num_eq, proc_rows, proc_vals, curr, recvd_row, rows_per_proc, num_proc, var_perm);
             i++;
         }
-        cerr<<"prev loop"<<id<<" "<<cnt<<endl;
+        // cerr<<"prev loop"<<id<<" "<<cnt<<endl;
 
         piv = compute_pivot(curr, num_proc, num_eq, proc_rows);
         ll tem = piv;
@@ -270,9 +270,10 @@ int main(int argc, char **argv)
             send_buf[j] = proc_rows[(j + num_eq * cnt)];
         send_buf[(num_eq + 1)] = proc_vals[cnt], send_buf[num_eq] = tem;
         // but if num_proc<2 then last row will also be sent and we dont want that so handling it
-        if (num_proc >= 2){
+        if (num_proc >= 2)
+        {
             MPI_Send(send_buf, REC_SZ, MPI_DOUBLE, next_proc, curr, comm);
-            cerr<<"dd\n"<<id<<endl;
+            // cerr<<"dd\n"<<id<<endl;
         }
         // updating curr and prev_curr
         prev_curr = curr;
