@@ -3,9 +3,6 @@
 #include <fstream>
 #define ll long long int
 #define ld double
-#define fw(i, s, e) for (ll i = s; i < e; ++i) // forward loop so fw
-#define fe(i, s, e) for (ll i = s; i <= e; ++i)
-#define fb(i, e, s) for (ll i = e; i >= s; --i) // for loop but backward so fb
 using namespace std;
 
 // num_proc is the no_of_processes
@@ -23,7 +20,7 @@ using namespace std;
 // eff_row is proc_assign
 // var_perm is perm_of_var
 
-void perform_elimination(int recv_id, int id, int num_eq, ld *proc_rows, ld *proc_vals, int curr, ld *recvd_row, int rows_per_proc, int num_proc, int *var_perm)
+void Eliminate(int recv_id, int id, int num_eq, ld *proc_rows, ld *proc_vals, int curr, ld *recvd_row, int rows_per_proc, int num_proc, int *var_perm)
 {
 
     swap(var_perm[(int)recvd_row[num_eq]], var_perm[recv_id]);
@@ -226,7 +223,7 @@ int main(int argc, char **argv)
             // preforming elimination step
             flag = 1;
             // printf("First");
-            perform_elimination(i, id, num_eq, proc_rows, proc_vals, curr, recvd_row, rows_per_proc, num_proc, var_perm);
+            Eliminate(i, id, num_eq, proc_rows, proc_vals, curr, recvd_row, rows_per_proc, num_proc, var_perm);
             i++;
         }
         // cerr<<"prev loop"<<id<<" "<<cnt<<endl;
@@ -277,7 +274,7 @@ int main(int argc, char **argv)
         prev_curr = curr;
         curr = (num_proc + curr);
         cnt++;
-        perform_elimination(prev_curr, id, num_eq, proc_rows, proc_vals, curr, send_buf, rows_per_proc, num_proc, var_perm);
+        Eliminate(prev_curr, id, num_eq, proc_rows, proc_vals, curr, send_buf, rows_per_proc, num_proc, var_perm);
     }
     // recieving non processed rows
     ll i = prev_curr + 1;
@@ -289,7 +286,7 @@ int main(int argc, char **argv)
         if (curr < (i + num_proc - 1))
             MPI_Send(recvd_row, REC_SZ, MPI_DOUBLE, next_proc, i, comm);
 
-        perform_elimination(i, id, num_eq, proc_rows, proc_vals, curr, recvd_row, rows_per_proc, num_proc, var_perm);
+        Eliminate(i, id, num_eq, proc_rows, proc_vals, curr, recvd_row, rows_per_proc, num_proc, var_perm);
 
         i++;
     }
