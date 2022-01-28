@@ -125,5 +125,5 @@ int main(int argc, char **argv)
     }
 
     MPI_Finalize();
-    return EXIT_SUCCESS; // defined as 0 in stdlib
+    return EXIT_SUCCESS; 
 }
