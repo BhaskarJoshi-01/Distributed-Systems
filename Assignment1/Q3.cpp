@@ -5,32 +5,31 @@
 #define ld double
 using namespace std;
 
-// num_proc is the no_of_processes
-// id is the rank of process
-// inputfp is the input_file_pointer
-// eq_mat is the A_matrix
-// val_mat is the b_matrix
-// divs is no_of_coefficients_per_process
-// displs is displacement_vector
-// rpp is rows_per_process
-// np0 is number_of_process_with_rows=rpp
-// np1 is number_of_process_with_rows=rpp+1
+// rank is the rank of process
+// read_inp is the read_inp
+// A_matrix is the A_matrix
+// b_matrix is the b_matrix
+// chunks_per_proc is chunks_per_proc
+// displacement_vector is displacement_vector
+// rows_per_process is rows_per_process
+// P_0 is number_of_process_with_rows=rows_per_process
+// P_1 is number_of_process_with_rows=rows_per_process+1
 // var_perm is array to store temp_col_num
-// rows_before is actual_posn in 1d view
-// eff_row is proc_assign
+// actual_posn_1d is actual_posn in 1d view
+// proc_assign is proc_assign
 // var_perm is perm_of_var
 
-void Eliminate(int recv_id, int id, int num_eq, ld *proc_rows, ld *proc_vals, int curr, ld *recvd_row, int rows_per_proc, int num_proc, int *var_perm)
+void Eliminate(int recv_id, int rank, int num_eq, ld *proc_rows, ld *proc_vals, int curr, ld *recvd_row, int rows_per_proc, int no_of_processes, int *var_perm)
 {
 
     swap(var_perm[(int)recvd_row[num_eq]], var_perm[recv_id]);
     ll i = 0;
     while (i < rows_per_proc)
     {
-        if (num_proc * i != recv_id - id)
+        if (no_of_processes * i != recv_id - rank)
         {
             swap(proc_rows[(num_eq * i) + recv_id], proc_rows[(num_eq * i) + (int)recvd_row[num_eq]]);
-            if (curr / num_proc > i)
+            if (curr / no_of_processes > i)
             {
             }
             else
@@ -51,93 +50,93 @@ int main(int argc, char **argv)
 {
 
     MPI_Init(&argc, &argv);
-    int num_proc, id;
+    int no_of_processes, rank;
     MPI_Comm comm = MPI_COMM_WORLD;
 
-    MPI_Comm_size(comm, &num_proc);
-    MPI_Comm_rank(comm, &id);
+    MPI_Comm_size(comm, &no_of_processes);
+    MPI_Comm_rank(comm, &rank);
     int root_rank = 0;
     // Reading input from file
-    FILE *inputfp = NULL;
+    FILE *read_inp = NULL;
     ll num_eq = 0;
     // reading number of equations from file first and creating
     // variables accordingly for taking matrix as input and distributing
 
-    if (id == root_rank)
+    if (rank == root_rank)
     {
-        inputfp = fopen(argv[1], "r");
-        fscanf(inputfp, "%lld", &num_eq);
+        read_inp = fopen(argv[1], "r");
+        fscanf(read_inp, "%lld", &num_eq);
     }
     // printf("First4");
 
     ll oned_size = pow(num_eq, 2);
     // converting n*n A matrix that was input to 1*n matrix
 
-    ld eq_mat[oned_size], val_mat[num_eq];
+    ld A_matrix[oned_size], b_matrix[num_eq];
     // sending no. of equations to every process
     MPI_Bcast(&num_eq, 1, MPI_INT, root_rank, comm);
-    // printf("First5 %d\n", id);
+    // printf("First5 %d\n", rank);
 
     // Defining variables for dividing processes
-    ll rpp, rows_per_proc, np0, np1;
+    ll rows_per_process, rows_per_proc, P_0, P_1;
     int var_perm[num_eq]; // stores the column no. in array
     for (ll i = 0; i < num_eq; ++i)
         var_perm[i] = i;
-    rpp = num_eq / num_proc; // no of process that shoud be divided into processes
+    rows_per_process = num_eq / no_of_processes; // no of process that shoud be divided into processes
     // like 12/4=3
 
     // now basically what i m trying to do is pair conditions like
     // 15/4 so there will be like 3 processes with one more row and only
     // one process with 15/4
 
-    ll A_SZ, B_SZ, REC_SZ, rem_proc = num_eq % num_proc;
-    np0 = num_proc - rem_proc;
-    np1 = num_proc - np0;
-    // if process rank is less than np1 so we should give it one more pocess
-    rows_per_proc = ((id < np1) ? (1 + rpp) : rpp);
-    // fprintf(stderr, "hello %d %lld\n", id, rows_per_proc);
-    int divs[num_proc], displs[num_proc];
-    memset(divs, 0, sizeof(divs));
-    if (id == root_rank)
+    ll A_SZ, B_SZ, REC_SZ, rem_proc = num_eq % no_of_processes;
+    P_0 = no_of_processes - rem_proc;
+    P_1 = no_of_processes - P_0;
+    // if process rank is less than P_1 so we should give it one more pocess
+    rows_per_proc = ((rank < P_1) ? (1 + rows_per_process) : rows_per_process);
+    // fprintf(stderr, "hello %d %lld\n", rank, rows_per_proc);
+    int chunks_per_proc[no_of_processes], displacement_vector[no_of_processes];
+    memset(chunks_per_proc, 0, sizeof(chunks_per_proc));
+    if (rank == root_rank)
     {
         // now what i m trying to do is calc the final posn of row in linearized array
-        memset(divs, 0, sizeof(divs));
-        ll rows_before, eff_row;
+        memset(chunks_per_proc, 0, sizeof(chunks_per_proc));
+        ll actual_posn_1d, proc_assign;
         ll i = 0;
-        displs[0] = 0; // used later for disp vector
+        displacement_vector[0] = 0; // used later for disp vector
         while (i < num_eq)
         {
             ll k = 0;
-            rows_before = 0;
-            if ((i % num_proc) > np1)
+            actual_posn_1d = 0;
+            if ((i % no_of_processes) > P_1)
             {
-                rows_before = np1 * (1 + rpp);
-                rows_before = rpp * (i % num_proc) - rpp * np1 + rows_before;
+                actual_posn_1d = P_1 * (1 + rows_per_process);
+                actual_posn_1d = rows_per_process * (i % no_of_processes) - rows_per_process * P_1 + actual_posn_1d;
             }
             else
-                rows_before = (i % num_proc) * (1 + rpp);
-            eff_row = divs[i % num_proc] + rows_before;
-            divs[i % num_proc]++;
-            // cerr << "\ndivs update" << divs[i % num_proc] << endl;
+                actual_posn_1d = (i % no_of_processes) * (1 + rows_per_process);
+            proc_assign = chunks_per_proc[i % no_of_processes] + actual_posn_1d;
+            chunks_per_proc[i % no_of_processes]++;
+            // cerr << "\ndivs update" << chunks_per_proc[i % no_of_processes] << endl;
             // now we have assigned row in process , now we just read and allocate from imput
             while (k < num_eq)
             {
-                fscanf(inputfp, "%lf", &eq_mat[k + num_eq * eff_row]);
+                fscanf(read_inp, "%lf", &A_matrix[k + num_eq * proc_assign]);
                 k++;
             }
-            fscanf(inputfp, "%lf", &val_mat[eff_row]);
+            fscanf(read_inp, "%lf", &b_matrix[proc_assign]);
             i++;
             // now we have our A matrix and b matrix in desired form
         }
         // now we calculate the disp vector for scatterv
         ll itr = 1;
-        while (itr < num_proc)
+        while (itr < no_of_processes)
         {
-            divs[itr - 1] = num_eq * divs[itr - 1];
-            displs[itr] = divs[itr - 1] + displs[itr - 1];
+            chunks_per_proc[itr - 1] = num_eq * chunks_per_proc[itr - 1];
+            displacement_vector[itr] = chunks_per_proc[itr - 1] + displacement_vector[itr - 1];
             itr++;
         }
-        divs[num_proc - 1] = num_eq * divs[num_proc - 1], fclose(inputfp);
+        chunks_per_proc[no_of_processes - 1] = num_eq * chunks_per_proc[no_of_processes - 1], fclose(read_inp);
     }
 
     // MPI_Barrier blocks all MPI processes in the given communicator until they all call this routine.
@@ -152,39 +151,39 @@ int main(int argc, char **argv)
     // MPI_Scatterv is in which the data dispatched from the root process
     // can vary in the number of elements, and the location from which load
     // these elements in the root process buffer.
-    // if (id == 0)
+    // if (rank == 0)
     // {
 
     //     // for (int i = 0; i < A_SZ; i++)
     //     // {
-    //     //     cerr << eq_mat[i] << " ";
+    //     //     cerr << A_matrix[i] << " ";
     //     // }
     //     // cerr << "\n";
     //     // cerr << "\n"
-    //         //  << id << "DIVS: ";
-    //     for (int i = 0; i < num_proc; i++)
+    //         //  << rank << "DIVS: ";
+    //     for (int i = 0; i < no_of_processes; i++)
     //     {
-    //         cerr << divs[i] << " ";
+    //         cerr << chunks_per_proc[i] << " ";
     //     }
     //     cerr << endl;
     //     cerr << "disps\n";
-    //     for (int i = 0; i < num_proc; i++)
+    //     for (int i = 0; i < no_of_processes; i++)
     //     {
-    //         cerr << displs[i] << " ";
+    //         cerr << displacement_vector[i] << " ";
     //     }
     //     cerr << "\n";
     // }
 
-    MPI_Scatterv(eq_mat, divs, displs, MPI_DOUBLE, proc_rows, A_SZ, MPI_DOUBLE, root_rank, comm);
-    // cerr << "hi " << id << endl;
+    MPI_Scatterv(A_matrix, chunks_per_proc, displacement_vector, MPI_DOUBLE, proc_rows, A_SZ, MPI_DOUBLE, root_rank, comm);
+    // cerr << "hi " << rank << endl;
 
     // similarly we need to do for B matrix
-    // as divs and disps were multiplied by num_eq above
+    // as chunks_per_proc and disps were multiplied by num_eq above
     // changing them back
-    for (ll i = 0; i <= num_proc - 1; ++i)
-        displs[i] /= num_eq, divs[i] /= num_eq;
+    for (ll i = 0; i <= no_of_processes - 1; ++i)
+        displacement_vector[i] /= num_eq, chunks_per_proc[i] /= num_eq;
 
-    MPI_Scatterv(val_mat, divs, displs, MPI_DOUBLE, proc_vals, B_SZ, MPI_DOUBLE, root_rank, comm);
+    MPI_Scatterv(b_matrix, chunks_per_proc, displacement_vector, MPI_DOUBLE, proc_vals, B_SZ, MPI_DOUBLE, root_rank, comm);
 
     // defining variables
     MPI_Status st;
@@ -192,23 +191,23 @@ int main(int argc, char **argv)
     ld recvd_row[REC_SZ];
 
     ll prev_proc, next_proc, curr, prev_curr;
-    curr = id, prev_curr = -1;
-    next_proc = (1 + id);
-    next_proc %= num_proc;
-    prev_proc = (num_proc + id - 1);
-    prev_proc %= num_proc;
+    curr = rank, prev_curr = -1;
+    next_proc = (1 + rank);
+    next_proc %= no_of_processes;
+    prev_proc = (no_of_processes + rank - 1);
+    prev_proc %= no_of_processes;
 
     // now our task is to get upper triangular matrix and then backsubstitute
     ll piv, cnt = 0;
     int flag = 0;
     MPI_Barrier(comm);
-    // fprintf(stderr, "hello %d %lld\n", id, rows_per_proc);
+    // fprintf(stderr, "hello %d %lld\n", rank, rows_per_proc);
     // cerr<<endl;
-    // cerr<<"hello"<<id<<rows_per_proc<<endl;
+    // cerr<<"hello"<<rank<<rows_per_proc<<endl;
     // we will loop over the rows and communicate in pipelined way
     while (cnt <= rows_per_proc - 1)
     {
-        // cout<<endl<<"ko"<<id<<root_rank<<":"<<cnt<<endl;
+        // cout<<endl<<"ko"<<rank<<root_rank<<":"<<cnt<<endl;
         ld send_buf[REC_SZ]; // this will contain first n processed values of rows and next pivot at nth posn and value of b at n+1th index
         // Iterating over all the rows before the current row and
         // previously processed row, to perform elimination
@@ -216,22 +215,22 @@ int main(int argc, char **argv)
         ll i = (prev_curr + 1);
         while (i <= curr - 1)
         {
-            // cerr<<"ee "<<id<<cnt<<endl;
+            // cerr<<"ee "<<rank<<cnt<<endl;
             MPI_Recv(recvd_row, REC_SZ, MPI_DOUBLE, prev_proc, i, comm, &st);
-            if (curr < (i + num_proc - 1))
+            if (curr < (i + no_of_processes - 1))
                 MPI_Send(recvd_row, REC_SZ, MPI_DOUBLE, next_proc, i, comm);
             // preforming elimination step
             flag = 1;
             // printf("First");
-            Eliminate(i, id, num_eq, proc_rows, proc_vals, curr, recvd_row, rows_per_proc, num_proc, var_perm);
+            Eliminate(i, rank, num_eq, proc_rows, proc_vals, curr, recvd_row, rows_per_proc, no_of_processes, var_perm);
             i++;
         }
-        // cerr<<"prev loop"<<id<<" "<<cnt<<endl;
+        // cerr<<"prev loop"<<rank<<" "<<cnt<<endl;
         // calculating pivot
         ll piv;
         ld mx;
         ll row_id;
-        row_id = curr / num_proc;
+        row_id = curr / no_of_processes;
         mx = INT_MIN;
         ll pivot;
         i = curr;
@@ -250,31 +249,31 @@ int main(int argc, char **argv)
         // performing division step
 
 
-        swap(proc_rows[pivot + ((curr / num_proc) * num_eq)], proc_rows[curr + ((curr / num_proc) * num_eq)]);
+        swap(proc_rows[pivot + ((curr / no_of_processes) * num_eq)], proc_rows[curr + ((curr / no_of_processes) * num_eq)]);
          i = curr;
-        ld piv_val = proc_rows[curr + ((curr / num_proc) * num_eq)];
+        ld piv_val = proc_rows[curr + ((curr / no_of_processes) * num_eq)];
         while (i <= num_eq - 1)
         {
-            proc_rows[i + ((curr / num_proc) * num_eq)] /= piv_val;
+            proc_rows[i + ((curr / no_of_processes) * num_eq)] /= piv_val;
             i++;
         }
-        proc_vals[curr / num_proc] /= piv_val;
+        proc_vals[curr / no_of_processes] /= piv_val;
 
         // now update the send_buf from proc_rows
         for (ll j = 0; j <= num_eq - 1; ++j)
             send_buf[j] = proc_rows[(j + num_eq * cnt)];
         send_buf[(num_eq + 1)] = proc_vals[cnt], send_buf[num_eq] = pivot;
-        // but if num_proc<2 then last row will also be sent and we dont want that so handling it
-        if (num_proc >= 2)
+        // but if no_of_processes<2 then last row will also be sent and we dont want that so handling it
+        if (no_of_processes >= 2)
         {
             MPI_Send(send_buf, REC_SZ, MPI_DOUBLE, next_proc, curr, comm);
-            // cerr<<"dd\n"<<id<<endl;
+            // cerr<<"dd\n"<<rank<<endl;
         }
         // updating curr and prev_curr
         prev_curr = curr;
-        curr = (num_proc + curr);
+        curr = (no_of_processes + curr);
         cnt++;
-        Eliminate(prev_curr, id, num_eq, proc_rows, proc_vals, curr, send_buf, rows_per_proc, num_proc, var_perm);
+        Eliminate(prev_curr, rank, num_eq, proc_rows, proc_vals, curr, send_buf, rows_per_proc, no_of_processes, var_perm);
     }
     // recieving non processed rows
     ll i = prev_curr + 1;
@@ -283,17 +282,17 @@ int main(int argc, char **argv)
     {
         MPI_Recv(recvd_row, REC_SZ, MPI_DOUBLE, prev_proc, i, comm, &st);
 
-        if (curr < (i + num_proc - 1))
+        if (curr < (i + no_of_processes - 1))
             MPI_Send(recvd_row, REC_SZ, MPI_DOUBLE, next_proc, i, comm);
 
-        Eliminate(i, id, num_eq, proc_rows, proc_vals, curr, recvd_row, rows_per_proc, num_proc, var_perm);
+        Eliminate(i, rank, num_eq, proc_rows, proc_vals, curr, recvd_row, rows_per_proc, no_of_processes, var_perm);
 
         i++;
     }
     MPI_Barrier(comm);
 
     // now the back subs part
-    lst = num_proc * (rows_per_proc)-num_proc + id; // actual last row for curr process
+    lst = no_of_processes * (rows_per_proc)-no_of_processes + rank; // actual last row for curr process
     prev_lst = num_eq;
     cnt = rows_per_proc - 1;
     ld res[num_eq];
@@ -305,7 +304,7 @@ int main(int argc, char **argv)
             ll sd = num_eq + i;
             ld x_val;
             MPI_Recv(&x_val, count, MPI_DOUBLE, next_proc, sd, comm, &st);
-            if (i < (num_proc - 1 + lst))
+            if (i < (no_of_processes - 1 + lst))
                 MPI_Send(&x_val, count, MPI_DOUBLE, prev_proc, sd, comm);
             for (ll k = cnt; k > -1; --k)
             {
@@ -317,28 +316,28 @@ int main(int argc, char **argv)
         {
             proc_vals[k] -= (ans * proc_rows[lst + num_eq * k]);
         }
-        if (num_proc >= 2 && lst >= 1)
+        if (no_of_processes >= 2 && lst >= 1)
         {
             MPI_Send(&ans, count, MPI_DOUBLE, prev_proc, num_eq + lst, comm);
         }
         prev_lst = lst;
         cnt--;
-        lst = lst - num_proc;
+        lst = lst - no_of_processes;
     }
-    MPI_Gatherv(proc_vals, rows_per_proc, MPI_DOUBLE, res, divs, displs, MPI_DOUBLE, root_rank, comm);
+    MPI_Gatherv(proc_vals, rows_per_proc, MPI_DOUBLE, res, chunks_per_proc, displacement_vector, MPI_DOUBLE, root_rank, comm);
 
-    if (id == root_rank)
+    if (rank == root_rank)
     {
         ll k;
         ld solution[num_eq], sol[num_eq];
         k = 0;
-        for (ll i = 0; i <= num_proc - 1; ++i)
+        for (ll i = 0; i <= no_of_processes - 1; ++i)
         {
             ll j = i;
             while (j <= num_eq - 1)
             {
                 solution[j] = res[k++];
-                j += num_proc;
+                j += no_of_processes;
             }
         }
         for (ll i = 0; i <= num_eq - 1; ++i)
