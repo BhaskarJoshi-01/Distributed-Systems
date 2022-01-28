@@ -7,7 +7,8 @@
 #define fe(i, s, e) for (ll i = s; i <= e; ++i)
 #define fb(i, e, s) for (ll i = e; i >= s; --i) // for loop but backward so fb
 using namespace std;
-// num_proc is the number_of_processes
+
+// num_proc is the no_of_processes
 // id is the rank of process
 // inputfp is the input_file_pointer
 // eq_mat is the A_matrix
@@ -47,38 +48,7 @@ void perform_elimination(int recv_id, int id, int num_eq, ld *proc_rows, ld *pro
     }
 }
 
-ll compute_pivot(int curr, int num_proc, int num_eq, ld *proc_rows)
-{
-    ld mx;
-    ll row_id;
-    row_id = curr / num_proc;
-    mx = INT_MIN;
-    ll pivot, i = curr;
-    ld val;
-    while (i <= num_eq - 1)
-    {
-        val = proc_rows[i + (num_eq * row_id)];
-        val = abs(val);
-        if (val > mx)
-            pivot = i, mx = val;
-        i++;
-    }
-    return pivot;
-}
 
-void perform_division(int id, int curr, ld *proc_rows, int pivot, int num_proc, int num_eq, int rows_per_proc, ld *proc_vals)
-{
-
-    swap(proc_rows[pivot + ((curr / num_proc) * num_eq)], proc_rows[curr + ((curr / num_proc) * num_eq)]);
-    ll i = curr;
-    ld piv_val = proc_rows[curr + ((curr / num_proc) * num_eq)];
-    while (i <= num_eq - 1)
-    {
-        proc_rows[i + ((curr / num_proc) * num_eq)] /= piv_val;
-        i++;
-    }
-    proc_vals[curr / num_proc] /= piv_val;
-}
 
 int main(int argc, char **argv)
 {
@@ -101,7 +71,7 @@ int main(int argc, char **argv)
         inputfp = fopen(argv[1], "r");
         fscanf(inputfp, "%lld", &num_eq);
     }
-    printf("First4");
+    // printf("First4");
 
     ll oned_size = pow(num_eq, 2);
     // converting n*n A matrix that was input to 1*n matrix
@@ -109,7 +79,7 @@ int main(int argc, char **argv)
     ld eq_mat[oned_size], val_mat[num_eq];
     // sending no. of equations to every process
     MPI_Bcast(&num_eq, 1, MPI_INT, root_rank, comm);
-    printf("First5 %d\n", id);
+    // printf("First5 %d\n", id);
 
     // Defining variables for dividing processes
     ll rpp, rows_per_proc, np0, np1;
@@ -128,7 +98,7 @@ int main(int argc, char **argv)
     np1 = num_proc - np0;
     // if process rank is less than np1 so we should give it one more pocess
     rows_per_proc = ((id < np1) ? (1 + rpp) : rpp);
-    fprintf(stderr, "hello %d %lld\n", id, rows_per_proc);
+    // fprintf(stderr, "hello %d %lld\n", id, rows_per_proc);
     int divs[num_proc], displs[num_proc];
     memset(divs, 0, sizeof(divs));
     if (id == root_rank)
@@ -207,6 +177,7 @@ int main(int argc, char **argv)
     //     }
     //     cerr << "\n";
     // }
+
     MPI_Scatterv(eq_mat, divs, displs, MPI_DOUBLE, proc_rows, A_SZ, MPI_DOUBLE, root_rank, comm);
     // cerr << "hi " << id << endl;
 
@@ -245,7 +216,7 @@ int main(int argc, char **argv)
         // Iterating over all the rows before the current row and
         // previously processed row, to perform elimination
         // corresponding to that row
-        ll i = prev_curr + 1;
+        ll i = (prev_curr + 1);
         while (i <= curr - 1)
         {
             // cerr<<"ee "<<id<<cnt<<endl;
@@ -254,21 +225,48 @@ int main(int argc, char **argv)
                 MPI_Send(recvd_row, REC_SZ, MPI_DOUBLE, next_proc, i, comm);
             // preforming elimination step
             flag = 1;
-            printf("First");
+            // printf("First");
             perform_elimination(i, id, num_eq, proc_rows, proc_vals, curr, recvd_row, rows_per_proc, num_proc, var_perm);
             i++;
         }
         // cerr<<"prev loop"<<id<<" "<<cnt<<endl;
+        // calculating pivot
+        ll piv;
+        ld mx;
+        ll row_id;
+        row_id = curr / num_proc;
+        mx = INT_MIN;
+        ll pivot;
+        i = curr;
+        ld val;
+        while (i <= num_eq - 1)
+        {
+            val = proc_rows[i + (num_eq * row_id)];
+            val = abs(val);
+            if (val > mx)
+                pivot = i, mx = val;
+            i++;
+        }
+        piv = pivot;
+        // ll tem = pivot;
+        // printf("First3");
+        // performing division step
 
-        piv = compute_pivot(curr, num_proc, num_eq, proc_rows);
-        ll tem = piv;
-        printf("First3");
 
-        perform_division(id, curr, proc_rows, tem, num_proc, num_eq, rows_per_proc, proc_vals);
+        swap(proc_rows[pivot + ((curr / num_proc) * num_eq)], proc_rows[curr + ((curr / num_proc) * num_eq)]);
+         i = curr;
+        ld piv_val = proc_rows[curr + ((curr / num_proc) * num_eq)];
+        while (i <= num_eq - 1)
+        {
+            proc_rows[i + ((curr / num_proc) * num_eq)] /= piv_val;
+            i++;
+        }
+        proc_vals[curr / num_proc] /= piv_val;
+
         // now update the send_buf from proc_rows
         for (ll j = 0; j <= num_eq - 1; ++j)
             send_buf[j] = proc_rows[(j + num_eq * cnt)];
-        send_buf[(num_eq + 1)] = proc_vals[cnt], send_buf[num_eq] = tem;
+        send_buf[(num_eq + 1)] = proc_vals[cnt], send_buf[num_eq] = pivot;
         // but if num_proc<2 then last row will also be sent and we dont want that so handling it
         if (num_proc >= 2)
         {
