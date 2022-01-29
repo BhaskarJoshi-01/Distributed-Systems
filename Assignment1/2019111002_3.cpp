@@ -3,9 +3,6 @@
 #include <fstream>
 #define ll long long int
 #define ld long double
-#define fw(i, s, e) for (ll i = s; i < e; ++i) // forward loop so fw
-#define fe(i, s, e) for (ll i = s; i <= e; ++i)
-
 using namespace std;
 
 auto Eliminate = [](int recv_rank, int rank, int no_of_eq, ld *proc_rows, ld *proc_vals, int curr, ld *recvd_row, int rows_per_proc, int no_of_processes, int *permut_variables)
@@ -14,15 +11,16 @@ auto Eliminate = [](int recv_rank, int rank, int no_of_eq, ld *proc_rows, ld *pr
     ll i = 0;
     while (i < rows_per_proc)
     {
-        if ((no_of_processes * i + rank) != recv_rank)
+        if (no_of_processes * i != recv_rank - rank)
         {
             swap(proc_rows[(no_of_eq * i) + recv_rank], proc_rows[(no_of_eq * i) + (int)recvd_row[no_of_eq]]);
             if (curr / no_of_processes > i)
-                ;
+            {
+            }
             else
             {
                 ld piv_val = proc_rows[(no_of_eq * i) + recv_rank];
-                fe(j, 0, no_of_eq - 1)
+                for (ll j = 0; j <= no_of_eq - 1; ++j)
                     proc_rows[j + (no_of_eq * i)] -= (recvd_row[j] * piv_val);
                 proc_vals[i] = proc_vals[i] - recvd_row[no_of_eq + 1] * piv_val;
             }
@@ -31,25 +29,6 @@ auto Eliminate = [](int recv_rank, int rank, int no_of_eq, ld *proc_rows, ld *pr
     }
 };
 
-void permute(ld A[], int P[], ll n)
-{
-    for (ll i = 0; i < n; i++)
-    {
-        ll next = i;
-
-        // Check if it is already
-        // considered in cycle
-        while (P[next] >= 0)
-        {
-
-            swap(A[i], A[P[next]]);
-            ll temp = P[next];
-
-            P[next] -= n;
-            next = temp;
-        }
-    }
-}
 int main(int argc, char **argv)
 {
 
@@ -84,10 +63,9 @@ int main(int argc, char **argv)
     // Defining variables for dividing processes
     ll rows_per_process, rows_per_proc, P_0, P_1;
     int permut_variables[no_of_eq]; // stores the column no. in array
-    fw(i, 0, no_of_eq)
+    for (ll i = 0; i < no_of_eq; ++i)
         permut_variables[i] = i;
-    rows_per_process = no_of_eq;
-    rows_per_process /= no_of_processes; // no of process that shoud be divided into processes
+    rows_per_process = no_of_eq / no_of_processes; // no of process that shoud be divided into processes
     // like 12/4=3
 
     // now basically what i m trying to do is pair conditions like
@@ -162,13 +140,13 @@ int main(int argc, char **argv)
     //     // cerr << "\n";
     //     // cerr << "\n"
     //         //  << rank << "DIVS: ";
-    //     fw(i, 0, no_of_processes))
+    //     for (int i = 0; i < no_of_processes; i++)
     //     {
     //         cerr << chunks_per_proc[i] << " ";
     //     }
     //     cerr << endl;
     //     cerr << "disps\n";
-    //     fw(i,0,no_of_processes)
+    //     for (int i = 0; i < no_of_processes; i++)
     //     {
     //         cerr << displacement_vector[i] << " ";
     //     }
@@ -184,14 +162,13 @@ int main(int argc, char **argv)
     // similarly we need to do for B matrix
     // as chunks_per_proc and disps were multiplied by no_of_eq above
     // changing them back
-    fe(i, 0, (no_of_processes - 1))
-        displacement_vector[i] /= no_of_eq,
-        chunks_per_proc[i] /= no_of_eq;
+    for (ll i = 0; i <= no_of_processes - 1; ++i)
+        displacement_vector[i] /= no_of_eq, chunks_per_proc[i] /= no_of_eq;
 
     MPI_Scatterv(b_matrix, chunks_per_proc, displacement_vector, MPI_LONG_DOUBLE, proc_vals, B_SZ, MPI_LONG_DOUBLE, root_rank, comm);
 
     // defining variables
-    MPI_Status status;
+    MPI_Status st;
     REC_SZ = no_of_eq + 1 + 1; // sending no. of eq (n) + pivot (1)+ corresp val of b (1)
     ld recvd_row[REC_SZ];
 
@@ -221,7 +198,7 @@ int main(int argc, char **argv)
         while (i <= curr - 1)
         {
             // cerr<<"ee "<<rank<<cnt<<endl;
-            MPI_Recv(recvd_row, REC_SZ, MPI_LONG_DOUBLE, prev_proc, i, comm, &status);
+            MPI_Recv(recvd_row, REC_SZ, MPI_LONG_DOUBLE, prev_proc, i, comm, &st);
             if (curr < (i + no_of_processes - 1))
             {
                 flag = 1;
@@ -286,7 +263,7 @@ int main(int argc, char **argv)
     ll lst, prev_lst, count = 1;
     while (i <= no_of_eq - 1)
     {
-        MPI_Recv(recvd_row, REC_SZ, MPI_LONG_DOUBLE, prev_proc, i, comm, &status);
+        MPI_Recv(recvd_row, REC_SZ, MPI_LONG_DOUBLE, prev_proc, i, comm, &st);
 
         if (curr < (i + no_of_processes - 1))
             MPI_Send(recvd_row, REC_SZ, MPI_LONG_DOUBLE, next_proc, i, comm);
@@ -309,7 +286,7 @@ int main(int argc, char **argv)
         {
             ll sd = no_of_eq + i;
             ld x_val;
-            MPI_Recv(&x_val, count, MPI_LONG_DOUBLE, next_proc, sd, comm, &status);
+            MPI_Recv(&x_val, count, MPI_LONG_DOUBLE, next_proc, sd, comm, &st);
             if (i < (no_of_processes - 1 + lst))
                 MPI_Send(&x_val, count, MPI_LONG_DOUBLE, prev_proc, sd, comm);
             for (ll k = cnt; k > -1; --k)
@@ -337,7 +314,7 @@ int main(int argc, char **argv)
         ll k;
         ld solution[no_of_eq], sol[no_of_eq];
         k = 0;
-        fe(i, 0, (no_of_processes - 1))
+        for (ll i = 0; i <= no_of_processes - 1; ++i)
         {
             ll j = i;
             while (j <= no_of_eq - 1)
@@ -346,11 +323,15 @@ int main(int argc, char **argv)
                 j += no_of_processes;
             }
         }
-        permute(solution, permut_variables, no_of_eq);
-        FILE *outfile = fopen(argv[2], "w");
-        fe(i,0,(no_of_eq-1))
+        for (ll i = 0; i <= no_of_eq - 1; ++i)
         {
-            fprintf(outfile, "%0.8Lf ", solution[i]);
+            ld tv = solution[i];
+            sol[permut_variables[i]] = tv;
+        }
+        FILE *outfile = fopen(argv[2], "w");
+        for (ll i = 0; i <= no_of_eq - 1; ++i)
+        {
+            fprintf(outfile, "%Lf ", sol[i]);
         }
         fclose(outfile);
     }
