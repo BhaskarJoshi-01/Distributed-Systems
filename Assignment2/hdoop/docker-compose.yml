@@ -8,3 +8,8 @@ services:
       - 9870:9870
       - 9864:9864
       - 8088:8088
+    volumes:
+       - /home/bhaskar/Desktop/Distributed-Systems/Assignment2/:/mnt
+  
+volumes:
+  x:
