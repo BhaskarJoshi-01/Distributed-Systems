@@ -11,10 +11,17 @@ for line in sys.stdin:
     else:
         ccs.append(cc)
 
+all_nodes = set()
+
 for cc in ccs:
     for ele in cc:
+        all_nodes.add(ele)
         print(ele, end=" ")
     print()
+
+for node in range(1, 101):
+    if node not in all_nodes:
+        print(node)
 
         
 
