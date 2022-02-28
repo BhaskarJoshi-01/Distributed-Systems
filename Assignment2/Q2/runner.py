@@ -2,45 +2,11 @@
 import os
 import sys
 
-
-def preprocess(init_inp):
-    file = open(init_inp, "r")
-
-    line = [int(ele) for ele in file.readline().strip().split()]
-    m = line[0]
-    n = line[1]
-    matA = []
-    for i in range(line[0]):
-        matA.append([int(ele) for ele in file.readline().strip().split()])
-
-    line = [int(ele) for ele in file.readline().strip().split()]
-    p = line[1]
-    matB = []
-    for i in range(line[0]):
-        matB.append([int(ele) for ele in file.readline().strip().split()])
-    file.close()
-
-    out_file = open(init_inp, "w+")
-    for row_idx, row in enumerate(matA):
-        out_file.write(f"A {row_idx} {p} {','.join([str(ele) for ele in row])}\n")
-
-    for row_idx, row in enumerate(matB):
-        out_file.write(f"B {row_idx} {m} {','.join([str(ele) for ele in row])}\n")
-    
-    out_file.close()
-
-
-
-
-
 if (len (sys.argv) != 7):
     print ("Usage: " + sys.argv[0] + " <jar file address> <input_file> <hdfs_input_dir> <hdfs_output_dir> <mapper_dir> <reducer_dir>")
     exit (1)
 
 jar_file, input_file, hdfs_input_dir, hdfs_output_dir, mapper_dir, reducer_dir = sys.argv[1:]
-
-preprocess(input_file)
-
 
 # Set uid and gid to the current user
 os.setuid(os.getuid())

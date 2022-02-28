@@ -63,4 +63,4 @@ print('command: ' + final_command)
 os.system(final_command)
 
 
-# python3 runner.py ../jar_files/hadoop-streaming-3.3.1.jar ./input /Q2/ /output /mnt/Q2/ /mnt/Q2/
+# python3 runner.py ../jar_files/hadoop-streaming-3.3.1.jar ./input.txt /Q1/ /output /mnt/Q1/ /mnt/Q1/
